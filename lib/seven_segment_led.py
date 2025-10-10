@@ -1,3 +1,8 @@
+# MIT License (MIT)
+# Copyright (c) 2025 Oleksandr Teteria
+# This code was generated in part with the assistance of artificial intelligence (GitHub Copilot).
+# Reviewed, adapted and tested on Pi Pico with RP2040 by Oleksandr Teteria.
+
 from machine import Pin
 import time
 
@@ -50,3 +55,4 @@ if __name__ == '__main__':
         for num in range(0, 100):
             display.show(num, duration=0.2)
             
+
