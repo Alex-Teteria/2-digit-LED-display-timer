@@ -1,3 +1,8 @@
+# MIT License (MIT)
+# Copyright (c) 2025 Oleksandr Teteria
+# This code was generated in part with the assistance of artificial intelligence (GitHub Copilot).
+# Reviewed, adapted and tested on Pi Pico with RP2040 by Oleksandr Teteria.
+
 from machine import Pin, Timer
 import utime
 
@@ -90,4 +95,5 @@ if __name__ == '__main__':
     while True:
         utime.sleep(0.1)
         
+
     # You can also poll encoder.get_position() if you don't want to use callback
