@@ -1,3 +1,6 @@
+# Copyright (c) 2025 Oleksandr Teteria
+# License: MIT
+
 from cd4094 import CD4094
 import time
 
@@ -63,3 +66,4 @@ if __name__ == '__main__':
     clear_scale(out_register, bits)
     while True:
         init_led_scale(out_register, bits)
+
