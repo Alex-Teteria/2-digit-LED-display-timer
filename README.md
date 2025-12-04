@@ -25,6 +25,7 @@ The timer is built around the following key components:
 - `main_timer.py` — Main program logic
 - `lib/ky040_encoder.py` — Library containing the encoder class
 - `lib/seven_segment_led.py` — Library containing the display class
+- `lib/cd4094.py` — containing the driver for interfacing with the CD4094 shift register
 
 ## Hardware Assembly
 
