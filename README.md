@@ -19,6 +19,7 @@ The timer is built around the following key components:
 2. **Time Setting:** Set the countdown period using the KY-040 rotary encoder
 3. **Display:** Shows the set time and the timer status on a 2-digit seven-segment LED display
 4. **Output:** Provides an output signal for an actuator (e.g., bell, light indicator, etc.)
+5. **LED scale:** LED scale (30 LEDs) linearly highlights the remaining time
 
 ## File Structure
 
@@ -33,6 +34,10 @@ Assemble the timer according to the schematic using the listed components:
 - RP2040 Zero microcontroller
 - KY-040 rotary encoder
 - E20561-L two-digit seven-segment LED display (common cathode)
+- To build the LED scale, three ten-segment LED indicators of the OSX10201 type were used
+
+## Principle of implementing dynamic LED indication using CD4094 type shift registers  
+![LED_scale_2](https://github.com/user-attachments/assets/33b011c1-2a66-4bda-9090-ad85f0270192)
 
 ## License
 
