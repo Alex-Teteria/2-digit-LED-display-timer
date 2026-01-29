@@ -1,44 +1,115 @@
-# Countdown Timer Project
+# LED display timer (RP2040-ZERO, MicroPython)
 
-## Description
+Таймер на RP2040-ZERO з 2-розрядним 7-segment індикатором (TM1650), LED-шкалою (TM1650), енкодером KY-040 і (опційно) датчиком BME280.
 
-This project is a hardware-software countdown timer with two selectable time ranges:  
-- **1 to 99 seconds** (step: 1 second)  
-- **1 to 99 minutes** (step: 1 minute)  
+## Зміст
+- [Можливості](#можливості)
+- [Файли в репозиторії](#файли-в-репозиторії)
+- [Апаратна частина](#апаратна-частина)
+- [Прошивка](#прошивка)
+  - [Залежності](#залежності)
+  - [Підключення](#підключення)
+  - [Налаштування](#налаштування)
+  - [Файл стану data.json](#файл-стану-datajson)
+  - [Архітектура двох ядер](#архітектура-двох-ядер)
+- [Діагностика](#діагностика)
+- [License](#license)
 
-The timer is built around the following key components:
-- **RP2040 Zero microcontroller**
-- **KY-040 rotary encoder**
-- **E20561-L seven-segment LED display** (2-digit, dynamic indication, common cathode)
+---
+## Можливості
 
-## Features
+1. **Два діапазони часу:** перемикання тумблером (секунди/хвилини)
+   - 1..99 секунд (крок: 1 с)
+   - 1..99 хвилин (крок: 1 хв)
+2. **Встановлення часу:** задання тривалості зворотного відліку енкодером KY-040
+3. **Індикація:** 2-розрядний 7-сегментний LED-індикатор  
+   *(модуль TM1650 розрахований на 4 розряди, але в цьому пристрої підключено/використано лише 2)*
+4. **Вихід керування:** цифровий вихід для виконавчого пристрою (наприклад, дзвінок, лампа-індикатор тощо)
+5. **LED-шкала (30 світлодіодів):** лінійна індикація часу, що залишився, під час відліку
+6. **Sleep-режим (через 60 с бездіяльності):**
+   - пристрій переходить у sleep через **60 секунд** після завершення роботи виконавчого пристрою **або**
+   - через **60 секунд** паузи під час встановлення часу таймера
+   - у sleep виконується **індикація температури та тиску** (за наявності BME280)
 
-1. **Dual Time Ranges:** Switchable via a toggle (seconds/minutes)
-   - 1..99 seconds (step: 1 second)
-   - 1..99 minutes (step: 1 minute)
-2. **Time Setting:** Set the countdown period using the KY-040 rotary encoder
-3. **Display:** Shows the set time and the timer status on a 2-digit seven-segment LED display
-4. **Output:** Provides an output signal for an actuator (e.g., bell, light indicator, etc.)
-5. **LED scale:** LED scale (30 LEDs) linearly highlights the remaining time
+## Файли в репозиторії
 
-## File Structure
+```text
+.
+├── main.py
+├── LED_display_timer.pdf
+└── lib/
+    ├── utils.py
+    ├── ky040_encoder.py
+    ├── tm1650.py
+    └── bme280_float.py
+```
 
-- `main_timer.py` — Main program logic
-- `lib/ky040_encoder.py` — Library containing the encoder class
-- `lib/seven_segment_led.py` — Library containing the display class
-- `lib/cd4094.py` — containing the driver for interfacing with the CD4094 shift register
+- `LED_display_timer.pdf` — принципова схема.
+- `main.py` — основний скрипт прошивки (його треба покласти в корінь файлової системи плати).
+- `lib/` — модулі, які імпортуються з `main.py` (на платі мають лежати в `/lib`).
 
-## Hardware Assembly
 
-Assemble the timer according to the schematic using the listed components:
-- RP2040 Zero microcontroller
-- KY-040 rotary encoder
-- E20561-L two-digit seven-segment LED display (common cathode)
-- To build the LED scale, three ten-segment LED indicators of the OSX10201 type were used
+## Апаратна частина
 
-## Principle of implementing dynamic LED indication using CD4094 type shift registers  
-![LED_scale_2](https://github.com/user-attachments/assets/33b011c1-2a66-4bda-9090-ad85f0270192)
+- Принципова схема: [`LED_display_timer.pdf`](LED_display_timer.pdf)
+
+## Прошивка 
+
+### Залежності
+Прошивка використовує модулі з каталогу `lib/`:
+- `lib/utils.py` — допоміжні функції/класи (таймерні значення, debounce тощо)
+- `lib/ky040_encoder.py` — KY-040 (`RotaryEncoder`)
+- `lib/tm1650.py` — TM1650 (7-seg + LED-шкала)
+- `lib/bme280_float.py` — BME280 (float)
+
+### Підключення
+
+- **I2C0 (LED Bar scale / TM1650)**: `SDA=GP0`, `SCL=GP1`, `freq=100_000`
+- **I2C1 (7-seg display / TM1650)**: `SDA=GP2`, `SCL=GP3`, `freq=4_000`
+- **SoftI2C (BME280)**: `SDA=GP4`, `SCL=GP5`, `freq=100_000`
+
+- **Енкодер KY-040**: `CLK=GP14`, `DT=GP15`
+- **Кнопка start/stop / вихід зі сну**: `GP26` (PULL_UP)
+- **Перемикач режиму (сек/хв)**: `GP27` (PULL_UP)  
+- **Вихід на виконавчий пристрій**: `GP28` (OUT)
+
+### Налаштування 
+Ключові константи в `main.py`:
+- `TIME_SLEEP = 60` — таймаут (сек) до переходу в sleep-режим
+- `TIME_OUT_DIVICE` — тривалість увімкнення виконавчого пристрою (сек)
+- `bits` — кількість сегментів LED-шкали
+- `SHOW_POS_HOLD_MS` — утримання показу позиції в режимі `sleep` перед поверненням до показів температури
+- `PRESSURE_BASE` — базове значення (офсет) тиску. У режимі `sleep` редагується енкодером як PRESSURE_BASE = 700 + pos, де pos у діапазоні 0..99.
+
+
+### Файл стану `data.json`
+У flash зберігається `data.json`:
+- при старті файл створюється/відновлюється, якщо відсутній/порожній/некоректний JSON
+- ключі:
+  - `pressure_base` — збереження бази
+  - `pressure_current`, `pressure_old` — значення тиску (якщо BME280 доступний)
+- запис у файл виконується лише коли потрібно (ініціалізація/відновлення полів), і окремо при виході зі sleep перед `machine.reset()`.  
+
+
+### Архітектура двох ядер
+- **Core0**:
+  - інтерфейс таймера: встановлення часу енкодером, запуск/зупинка
+  - 7-seg індикація
+  - `sleep`-режим: WDT, індикація позиції, (опційно) показ температури на 7-сегментгому LED-індикаторі / показ тиску на LED Bar-шкалі
+  - обробники таймерів виконуються через micropython.schedule() з guard-прапорцями:
+    - `_led_pending`, `_sleep_pending`, `_scale_pending`
+
+- **Core1**:
+  - у `sleep`-режимі: опитує енкодер, оновлює `PRESSURE_BASE`, сигналізує Core0 через `sleep_pos_seq`
+  - у `run`-режимі: керує періодичним оновленням LED-шкали таймера (`tim_scale`)
+
+Доступ до I2C0 (LED Bar-шкала) серіалізований через scale_lock, щоб виклики до TM1650 не накладались між контекстами.
+
+## Діагностика  
+- **BME280 не знайдений при старті:** `bme_flag=False`, обчислення та індикація температури/тиску не виконуються.
+- **Reset у `sleep` - режимі:** перевірити живлення 3.3V, стабільність I2C та відсутність блокуючих ділянок (WDT у sleep налаштований на 8 секунд).
 
 ## License
+- Licensed under MIT.
 
-See the `License` file in the root of this repository.
+
