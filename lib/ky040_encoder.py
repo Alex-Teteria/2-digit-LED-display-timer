@@ -1,10 +1,9 @@
-# MIT License (MIT)
-# Copyright (c) 2025 Oleksandr Teteria
-# This code was generated in part with the assistance of artificial intelligence (GitHub Copilot).
-# Reviewed, adapted and tested on Pi Pico with RP2040 by Oleksandr Teteria.
-
 from machine import Pin, Timer
 import utime
+import micropython
+
+
+micropython.alloc_emergency_exception_buf(256)
 
 class RotaryEncoder:
     # State table for rotary encoder transitions (Gray code)
@@ -27,9 +26,13 @@ class RotaryEncoder:
 
         self._last_state = (self.clk.value() << 1) | self.dt.value()
         self._last_btn_time = 0
-        self._last_rotary_time = 0
         self._step_count = 0
 
+        # schedule state
+        self._sched_pending = False
+        self._cb_dir = 0
+        self._cb_button = False
+        
         # Use a Timer for periodic polling (debounced)
         self._poll_timer = Timer()
         self._poll_timer.init(mode=Timer.PERIODIC, period=self._debounce_ms, callback=self._poll_rotary)
@@ -38,11 +41,6 @@ class RotaryEncoder:
             self.sw.irq(trigger=Pin.IRQ_FALLING, handler=self._button_handler)
 
     def _poll_rotary(self, t):
-        current_time = utime.ticks_ms()
-        # Debounce
-        if utime.ticks_diff(current_time, self._last_rotary_time) < self._debounce_ms:
-            return
-        self._last_rotary_time = current_time
 
         clk_val = self.clk.value()
         dt_val = self.dt.value()
@@ -57,8 +55,10 @@ class RotaryEncoder:
                 detent_direction = int(self._step_count / 4)
                 self.position += detent_direction
                 self._step_count = 0
-                if self.callback:
-                    self.callback(self.position, detent_direction)
+                self._cb_dir = detent_direction
+                self._cb_button = False
+                self._schedule_cb()
+
             self._last_state = state
         else:
             self._last_state = state
@@ -69,8 +69,30 @@ class RotaryEncoder:
             return
         self._last_btn_time = current_time
         if self.sw.value() == 0:  # Button pressed
-            if self.callback:
+            self._cb_dir = 0
+            self._cb_button = True
+            self._schedule_cb()
+
+    def _schedule_cb(self):
+        if not self.callback:
+            return
+        if self._sched_pending:
+            return
+        self._sched_pending = True
+        try:
+            micropython.schedule(self._run_cb, 0)
+        except RuntimeError:
+            self._sched_pending = False
+
+    def _run_cb(self, _):
+        self._sched_pending = False
+        try:
+            if self._cb_button:
                 self.callback(self.position, 0, button=True)
+            else:
+                self.callback(self.position, self._cb_dir)
+        except Exception:
+            pass
 
     def get_position(self):
         return self.position
@@ -90,10 +112,13 @@ def rotary_event(pos, direction, button=False):
 
 if __name__ == '__main__':
     
-    encoder = RotaryEncoder(clk_pin=15, dt_pin=14, debounce_ms=5, callback=rotary_event)
+    encoder = RotaryEncoder(clk_pin=15,
+                            dt_pin=14,
+                            sw_pin=26,
+                            debounce_ms=5,
+                            callback=rotary_event)
     encoder.position = 10
     while True:
         utime.sleep(0.1)
         
-
     # You can also poll encoder.get_position() if you don't want to use callback
